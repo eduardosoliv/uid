@@ -4,6 +4,8 @@ import (
 	"net/http"
 )
 
+// A really incomplete implementation of content negotation but good enough
+// for now
 func getFormat(r *http.Request) (string, string) {
 	formats := map[string]string{
 		// html
