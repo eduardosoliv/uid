@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -10,6 +11,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	var path = r.URL.Path[0:]
 	var method = r.Method
 
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("Panic: ", err)
+			errorHandler(w, r, http.StatusInternalServerError, nil)
+		}
+	}()
+
 	// check that the URL is /api/i/ids/{type}?amount=X
 	var index = strings.Index(path, "/api/i/ids/")
 	if index != 0 || method != "GET" {
@@ -17,11 +25,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			w,
 			r,
 			http.StatusNotFound,
-			[]string{fmt.Sprintf(
-				"No route found for \"%s %s\"",
-				r.Method,
-				r.URL.Path[0:],
-			)},
+			[]string{
+				fmt.Sprintf(
+					"No route found for \"%s %s\"",
+					r.Method,
+					r.URL.Path,
+				),
+			},
 		)
 		return
 	}
