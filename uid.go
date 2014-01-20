@@ -1,15 +1,26 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
+// note, that variables are pointers
+var uri = flag.String("uri", "/api/ids/", "The URI")
+
+func init() {
+	// example with short version for long flag
+	flag.StringVar(uri, "u", "/api/ids/", "The URI")
+}
+
 func handler(w http.ResponseWriter, r *http.Request) {
-	var path = r.URL.Path[0:]
-	var method = r.Method
+	urlPath := r.URL.Path[0:]
+	method := r.Method
 
 	defer func() {
 		if err := recover(); err != nil {
@@ -18,9 +29,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// check that the URL is /api/i/ids/{type}?amount=X
-	var index = strings.Index(path, "/api/i/ids/")
-	if index != 0 || method != "GET" {
+	if strings.Index(urlPath, *uri) != 0 || method != "GET" {
 		errorHandler(
 			w,
 			r,
@@ -28,20 +37,38 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			[]string{
 				fmt.Sprintf(
 					"No route found for \"%s %s\"",
-					r.Method,
-					r.URL.Path,
+					method,
+					urlPath,
 				),
 			},
 		)
 		return
 	}
 
+	amount := getAmount(r)
+	fmt.Fprintf(w, "%s %d", getType(r), amount)
+
 	format, contentType := getFormat(r)
 
-	fmt.Fprintf(w, "%s %s %s", path, format, contentType)
+	fmt.Fprintf(w, "%s %s %s", urlPath, format, contentType)
+}
+
+func getType(r *http.Request) string {
+	return r.URL.Path[utf8.RuneCountInString(*uri):]
+}
+
+func getAmount(r *http.Request) int {
+	amount, err := strconv.Atoi(r.FormValue("amount"))
+	if err != nil || amount < 1 {
+		amount = 1
+	}
+
+	return amount
 }
 
 func main() {
+	flag.Parse()
+	println(*uri)
 	http.HandleFunc("/", handler)
 	http.ListenAndServe(":8080", nil)
 }
