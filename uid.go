@@ -13,11 +13,6 @@ import (
 // note, that variables are pointers
 var uri = flag.String("uri", "/api/ids/", "The URI")
 
-func init() {
-	// example with short version for long flag
-	flag.StringVar(uri, "u", "/api/ids/", "The URI")
-}
-
 func handler(w http.ResponseWriter, r *http.Request) {
 	urlPath := r.URL.Path[0:]
 	method := r.Method
@@ -67,8 +62,10 @@ func getAmount(r *http.Request) int {
 }
 
 func main() {
+	port := flag.Int("port", 8080, "The port to listen")
 	flag.Parse()
 	println(*uri)
+	println(*port)
 	http.HandleFunc("/", handler)
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)
 }
