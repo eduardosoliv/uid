@@ -12,6 +12,20 @@ type ErrorWrapper struct {
 	Errors  []string
 }
 
+func errorHandlerFromError(
+	w http.ResponseWriter,
+	r *http.Request,
+	status int,
+	err error,
+) {
+	errorHandler(
+		w,
+		r,
+		http.StatusBadRequest,
+		[]string{err.Error()},
+	)
+}
+
 func errorHandler(
 	w http.ResponseWriter,
 	r *http.Request,
