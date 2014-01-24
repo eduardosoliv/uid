@@ -21,7 +21,7 @@ func errorHandlerFromError(
 	errorHandler(
 		w,
 		r,
-		http.StatusBadRequest,
+		status,
 		[]string{err.Error()},
 	)
 }

@@ -1,19 +1,21 @@
 package main
 
 import (
+	"bytes"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 )
 
-// note, that variables are pointers
 var uri = flag.String("uri", "/api/ids/", "The URI")
+var method = flag.String("method", "GET", "The HTTP method")
 var typesJson = flag.String(
 	"types",
 	`{"test": "uid_test", "sample": "uid_sample"}`,
@@ -23,18 +25,21 @@ var maxAmount = flag.Int("max-amount", 100, "The max amount of number of ids")
 var types map[string]string
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	urlPath := r.URL.Path[0:]
-	method := r.Method
+	var db *sql.DB
 
 	defer func() {
 		if err := recover(); err != nil {
+			if db != nil {
+				db.Close()
+			}
 			log.Println("Panic: ", err)
-			errorHandler(w, r, http.StatusInternalServerError, nil)
+			errorHandlerFromError(w, r, http.StatusInternalServerError, err.(error))
 		}
 	}()
 
 	// check URI and method
-	if strings.Index(urlPath, *uri) != 0 || method != "GET" {
+	urlPath := r.URL.Path[0:]
+	if strings.Index(urlPath, *uri) != 0 || r.Method != *method {
 		errorHandler(
 			w,
 			r,
@@ -42,7 +47,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			[]string{
 				fmt.Sprintf(
 					"No route found for \"%s %s\"",
-					method,
+					r.Method,
 					urlPath,
 				),
 			},
@@ -50,9 +55,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var err error
-
 	// get amount
+	var err error
 	var amount int
 	if amount, err = getAmount(r); err != nil {
 		errorHandlerFromError(w, r, http.StatusBadRequest, err)
@@ -70,6 +74,35 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	format, contentType := getFormat(r)
 
 	fmt.Fprintf(w, "%d %s %s %s %s", amount, idsType, table, format, contentType)
+
+	db, err = sql.Open("mysql", "root:root@tcp(127.0.0.1:3306)/eb_unique_test")
+	if err != nil {
+		panic(err)
+	}
+
+	result, err := db.Exec(
+		fmt.Sprintf(
+			"REPLACE INTO unique_test (stub) VALUES %s",
+			getSqlValues(amount),
+		),
+	)
+	if err != nil {
+		panic(err)
+	}
+	firstId, err := result.LastInsertId()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Fprintf(w, "\n")
+	increment := int64(10)
+	id := firstId
+	for i := 0; i < amount; i++ {
+		fmt.Fprintf(w, "%d\n", id)
+		id = id + increment
+	}
+
+	fmt.Fprintf(w, "%d", id)
 }
 
 func getAmount(r *http.Request) (int, error) {
@@ -88,7 +121,7 @@ func getAmount(r *http.Request) (int, error) {
 }
 
 func getTypeAndTable(r *http.Request) (string, string, error) {
-	idsType := r.URL.Path[utf8.RuneCountInString(*uri):]
+	idsType := r.FormValue("type")
 	table, found := types[idsType]
 
 	var err error
@@ -107,6 +140,15 @@ func storeTypes() {
 	if err := js.Decode(&types); err != nil {
 		log.Fatalf("Failed decode types json: %s", err)
 	}
+}
+
+func getSqlValues(amount int) string {
+	var buffer bytes.Buffer
+	for i := 1; i <= amount; i++ {
+		buffer.WriteString("('a'),")
+	}
+	values := buffer.String()
+	return values[:len(values)-1]
 }
 
 func main() {
