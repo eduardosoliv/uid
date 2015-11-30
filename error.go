@@ -1,10 +1,6 @@
 package main
 
-import (
-	"encoding/json"
-	"encoding/xml"
-	"net/http"
-)
+import "net/http"
 
 type ErrorWrapper struct {
 	Status  int
@@ -18,12 +14,7 @@ func errorHandlerFromError(
 	status int,
 	err error,
 ) {
-	errorHandler(
-		w,
-		r,
-		status,
-		[]string{err.Error()},
-	)
+	errorHandler(w, r, status, []string{err.Error()})
 }
 
 func errorHandler(
@@ -32,18 +23,7 @@ func errorHandler(
 	status int,
 	errors []string,
 ) {
-	error := ErrorWrapper{status, getStatusMessage(status), errors}
+	error := ErrorWrapper{status, http.StatusText(status), errors}
 
-	var res []byte
-	format, contentType := getFormat(r)
-	switch format {
-	case "json":
-		res, _ = json.Marshal(error)
-	case "xml":
-		res, _ = xml.MarshalIndent(error, "", "  ")
-	}
-
-	w.Header().Set("Content-Type", contentType)
-	w.WriteHeader(status)
-	w.Write(res)
+	render(w, r, status, error)
 }
